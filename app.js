@@ -1,6 +1,11 @@
 require('dotenv').config()
 
-const { ETwitterStreamEvent, TwitterApi } = require('twitter-api-v2'),
+const {
+		ETwitterStreamEvent,
+		TweetV2SingleStreamResult,
+		TweetStream,
+		TwitterApi,
+	} = require('twitter-api-v2'),
 	{ TwitterApiRateLimitPlugin } = require('@twitter-api-v2/plugin-rate-limit')
 
 const rateLimitPlugin = new TwitterApiRateLimitPlugin()
@@ -22,25 +27,44 @@ const streamClient = new TwitterApi(process.env.BEARER_TOKEN, {
 ;(async () => {
 	try {
 		await streamClient.v2.updateStreamRules({
-			add: [
-				{ value: '@personafinder has:mentions' },
-				{ value: 'application to @personafinder has:mentions' },
-				{ value: 'application for @personafinder has:mentions' },
-			],
+			add: [{ value: '@personafinder has:mentions' }],
 		})
 
-		const stream = await streamClient.v2.searchStream()
+		/**
+		 * @type {TweetStream<TweetV2SingleStreamResult>}
+		 */
+		const stream = await streamClient.v2.getStream('tweets/search/stream', {
+			'tweet.fields': 'entities',
+			expansions: ['referenced_tweets.id'],
+		})
 
 		console.log('Tweet stream online!')
 
 		stream.autoReconnect = true
 		stream.keepAliveTimeoutMs = Infinity
 
-		stream.on(
-			ETwitterStreamEvent.Data,
-			async ({ data }) =>
-				await userClient.v2.retweet('1521077435478908928', data.id)
-		)
+		stream.on(ETwitterStreamEvent.Data, async ({ data, includes }) => {
+			if (
+				[
+					'skills',
+					'skillsets',
+					'skill sets',
+					'application',
+					'looking for',
+					'includes',
+				].some((string) =>
+					(data.text || includes.tweets[0].text).includes(string)
+				)
+			) {
+				data.id &&
+					(await userClient.v2.retweet(process.env.TWITTER_ID, data.id))
+				includes.tweets.length &&
+					(await userClient.v2.retweet(
+						process.env.TWITTER_ID,
+						includes.tweets[0].id
+					))
+			}
+		})
 	} catch (error) {
 		console.log(error)
 	}
