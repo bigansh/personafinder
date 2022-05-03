@@ -27,7 +27,13 @@ const streamClient = new TwitterApi(process.env.BEARER_TOKEN, {
 ;(async () => {
 	try {
 		await streamClient.v2.updateStreamRules({
-			add: [{ value: '@personafinder has:mentions' }],
+			add: [
+				{ value: '@personafinder has:mentions' },
+				{
+					value:
+						'application,skillsets,skill sets,looking,gig @personafinder has:mentions',
+				},
+			],
 		})
 
 		/**
